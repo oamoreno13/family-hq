@@ -385,7 +385,7 @@ const fDia = iso => { const [, m, d] = iso.split('-'); return +d + ' de ' + MESE
 const enDias = n => n === 0 ? 'hoy' : n === 1 ? 'mañana' : 'en ' + n + ' días';
 
 /* La app vive fuera de Google: cada llamada va al proyecto "Family HQ API" con la clave. */
-const API = '__API_URL__';
+const API = 'https://script.google.com/macros/s/AKfycbwIjNYW8Mt2zbmIAXE0qui2mcNix5xl5YziabghOMDjbVYssADYDVPQAr5_HyW3LlqQ/exec';
 const CLAVE_K = 'hq.clave';
 function claveDeLink(t) { const m = String(t || '').match(/[#?&]k=([A-Za-z0-9]{20,})/); return m ? m[1] : (/^[A-Za-z0-9]{20,}$/.test(String(t || '').trim()) ? String(t).trim() : ''); }
 function claveApi() {
