@@ -28,17 +28,15 @@
   /* Dentro del marco de Google, iOS no deja que la página scrollee bien: el scroll vive en #app y el body queda fijo. */
   body{background:var(--papel);color:var(--tinta);font-family:'Inter',system-ui,sans-serif;font-size:15px;
        line-height:1.45;-webkit-font-smoothing:antialiased;position:fixed;inset:0;overflow:hidden}
-  /* Desde el ícono, iOS reporta una ventana más chica que la pantalla y recorta lo "fijo" a esa altura,
-     pero sí dibuja la página completa. html.banda: nada fijo; html y body miden la pantalla real
-     y todo se acomoda dentro, así la barra llega hasta abajo. */
+  /* Desde el ícono, iOS le da a la página una ventana ~50 pt más corta que la pantalla y la franja de
+     abajo solo la pinta con el fondo. html.app: la barra va pegada al final de la página y la franja
+     se pinta del color de la barra (o del number pad / ventana abierta): se ve como una barra nativa. */
   html{background:var(--papel)}
-  :root{--abajo:max(12px, calc(env(safe-area-inset-bottom) - 6px));--pie:env(safe-area-inset-bottom)}
-  html.banda,html.banda body{height:var(--alto);overflow:hidden;overscroll-behavior:none}
-  html.banda body{position:relative;inset:auto}
-  html.banda.fondoPad{background:var(--papel2)} html.banda.fondoModal{background:var(--blanco)}
+  :root{--pie:env(safe-area-inset-bottom)}
+  html.app{--pie:0px;background:var(--blanco)}
+  html.app.fondoPad{background:var(--papel2)} html.app.fondoModal{background:var(--blanco)}
   #app{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
-  #app main{padding-bottom:calc(96px + var(--abajo))}
-  #app{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)}
+  #app main{padding-bottom:calc(92px + var(--pie))}
   body.kb #app main{padding-bottom:60vh}
   .num{font-variant-numeric:tabular-nums}
   button{font-family:inherit;cursor:pointer;color:inherit;background:none}
@@ -208,11 +206,10 @@
   .cargando{opacity:.45;pointer-events:none;transition:opacity .2s}
 
   /* barra flotante translúcida */
-  nav.tabs{position:absolute;left:14px;right:14px;bottom:var(--abajo);z-index:6;max-width:480px;margin:0 auto;height:66px;border-radius:33px;
-    background:rgba(255,255,255,.84);-webkit-backdrop-filter:blur(20px) saturate(1.8);backdrop-filter:blur(20px) saturate(1.8);
-    border:1px solid rgba(22,40,61,.08);box-shadow:0 10px 30px rgba(22,40,61,.16),0 1px 0 rgba(255,255,255,.6) inset;
-    display:flex;justify-content:space-around;align-items:center;padding:0 8px}
-  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) nav.tabs{background:rgba(23,36,53,.86);border-color:rgba(255,255,255,.08);box-shadow:0 10px 30px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.06) inset}}
+  /* barra de pestañas: pegada al final de la página, ancho completo */
+  nav.tabs{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--blanco);border-top:1px solid var(--linea);
+    box-shadow:0 -6px 20px rgba(0,0,0,.06);display:flex;justify-content:space-around;align-items:center;
+    padding:7px 10px calc(7px + var(--pie))}
   nav.tabs button{border:0;background:transparent;color:var(--humo);font-size:10.5px;font-weight:600;display:flex;
     flex-direction:column;align-items:center;gap:2px;padding:6px 10px;min-width:64px;border-radius:22px;transition:color .15s,background .15s}
   nav.tabs button svg{width:23px;height:23px}
@@ -227,7 +224,7 @@
   nav.tabs .mas.guardar.on{color:#16283D;background:var(--cempa)}
   nav.tabs .mas:disabled{opacity:.6}
 
-  #toast{position:absolute;left:50%;bottom:calc(84px + var(--abajo));transform:translateX(-50%) translateY(20px);
+  #toast{position:absolute;left:50%;bottom:calc(84px + var(--pie));transform:translateX(-50%) translateY(20px);
     background:var(--oscuro);color:#EDEEEA;padding:12px 16px;border-radius:12px;font-size:14px;display:flex;gap:14px;
     align-items:center;opacity:0;pointer-events:none;transition:all .2s;z-index:10;max-width:92vw}
   #toast.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
@@ -391,7 +388,7 @@ function confirmar(txt, si) {
     setTimeout(() => subir(e.target), 50);
     setTimeout(() => { if (document.activeElement === e.target) subir(e.target); }, 350);
   });
-  document.addEventListener('focusout', () => setTimeout(() => { if (!esCampo(document.activeElement)) { document.body.classList.remove('kb'); if (document.documentElement.classList.contains('banda')) window.scrollTo(0, 0); } }, 120));
+  document.addEventListener('focusout', () => setTimeout(() => { if (!esCampo(document.activeElement)) { document.body.classList.remove('kb'); if (document.documentElement.classList.contains('app')) window.scrollTo(0, 0); } }, 120));
 })();
 const arriba = () => { document.getElementById('app').scrollTop = 0; };
 
@@ -1129,7 +1126,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v10' + (MEDIDAS ? ' · ' + MEDIDAS : '');
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v11' + (MEDIDAS ? ' · ' + MEDIDAS : '');
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
@@ -1137,20 +1134,9 @@ let MEDIDAS = '';
 function ajustarAlto() {
   const completa = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
   if (!completa) return;
-  const fija = () => {
-    const vertical = !window.matchMedia || matchMedia('(orientation: portrait)').matches;
-    const pantalla = vertical ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-    if (document.body.classList.contains('kb')) return;            // con teclado abierto no se recalcula
-    // Desde el ícono la app es toda la pantalla: se estira siempre a su altura real (iOS a veces reporta menos).
-    const alto = Math.max(pantalla, window.innerHeight);
-    MEDIDAS = `${screen.width}×${screen.height} · ${window.innerWidth}×${window.innerHeight} · ${document.documentElement.clientHeight}`;
-    document.documentElement.style.setProperty('--alto', alto + 'px');
-    document.documentElement.classList.add('banda');
-    window.scrollTo(0, 0);
-    pintarEstado();
-  };
-  fija();
-  window.addEventListener('resize', fija); window.addEventListener('orientationchange', () => setTimeout(fija, 300));
+  document.documentElement.classList.add('app');
+  const mide = () => { MEDIDAS = `${screen.width}×${screen.height} · ${window.innerWidth}×${window.innerHeight} · ${document.documentElement.clientHeight}`; pintarEstado(); };
+  mide(); window.addEventListener('resize', mide);
 }
 /* Jalar hacia abajo en la parte de arriba para actualizar (en pantalla completa no hay recargar de Safari). */
 function armarJalar() {
