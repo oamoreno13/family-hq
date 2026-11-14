@@ -28,11 +28,13 @@
   /* Dentro del marco de Google, iOS no deja que la página scrollee bien: el scroll vive en #app y el body queda fijo. */
   body{background:var(--papel);color:var(--tinta);font-family:'Inter',system-ui,sans-serif;font-size:15px;
        line-height:1.45;-webkit-font-smoothing:antialiased;position:fixed;inset:0;overflow:hidden}
-  /* Desde el ícono, iOS solo dibuja la página hasta cierta altura y deja una franja abajo (falla de iOS).
-     html.banda: la franja se pinta del mismo color que lo que toca y la barra flota encima. */
+  /* Desde el ícono, iOS reporta una ventana más chica que la pantalla y recorta lo "fijo" a esa altura,
+     pero sí dibuja la página completa. html.banda: nada fijo; html y body miden la pantalla real
+     y todo se acomoda dentro, así la barra llega hasta abajo. */
   html{background:var(--papel)}
   :root{--abajo:max(12px, calc(env(safe-area-inset-bottom) - 6px));--pie:env(safe-area-inset-bottom)}
-  html.banda{--abajo:10px;--pie:0px}
+  html.banda,html.banda body{height:var(--alto);overflow:hidden;overscroll-behavior:none}
+  html.banda body{position:relative;inset:auto}
   html.banda.fondoPad{background:var(--papel2)} html.banda.fondoModal{background:var(--blanco)}
   #app{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
   #app main{padding-bottom:calc(96px + var(--abajo))}
@@ -389,7 +391,7 @@ function confirmar(txt, si) {
     setTimeout(() => subir(e.target), 50);
     setTimeout(() => { if (document.activeElement === e.target) subir(e.target); }, 350);
   });
-  document.addEventListener('focusout', () => setTimeout(() => { if (!esCampo(document.activeElement)) document.body.classList.remove('kb'); }, 120));
+  document.addEventListener('focusout', () => setTimeout(() => { if (!esCampo(document.activeElement)) { document.body.classList.remove('kb'); if (document.documentElement.classList.contains('banda')) window.scrollTo(0, 0); } }, 120));
 })();
 const arriba = () => { document.getElementById('app').scrollTop = 0; };
 
@@ -1127,7 +1129,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v8';
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
@@ -1137,7 +1139,11 @@ function ajustarAlto() {
   const fija = () => {
     const vertical = !window.matchMedia || matchMedia('(orientation: portrait)').matches;
     const pantalla = vertical ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-    document.documentElement.classList.toggle('banda', pantalla - window.innerHeight > 20 && !document.body.classList.contains('kb'));
+    if (document.body.classList.contains('kb')) return;            // con teclado abierto no se recalcula
+    const corta = pantalla - window.innerHeight > 20;
+    document.documentElement.style.setProperty('--alto', pantalla + 'px');
+    document.documentElement.classList.toggle('banda', corta);
+    if (corta) window.scrollTo(0, 0);
   };
   fija();
   window.addEventListener('resize', fija); window.addEventListener('orientationchange', () => setTimeout(fija, 300));
