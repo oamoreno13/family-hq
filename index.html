@@ -218,6 +218,32 @@
   #toast.on{opacity:1;transform:translateX(-50%);pointer-events:auto}
   #toast.err{background:var(--barro)}
   #toast button{border:0;color:var(--cempa);font-weight:700;font-size:14px}
+
+  /* ---- number pad ---- */
+  .montoIn[readonly]{cursor:default;caret-color:transparent}
+  .montoIn.vivo{border-color:var(--verde)}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;user-select:none;-webkit-user-select:none}
+  .pad button{border:0;border-radius:12px;background:var(--papel);color:var(--tinta);font-size:24px;font-weight:500;height:54px;
+    font-variant-numeric:tabular-nums;touch-action:manipulation;transition:background .08s,transform .08s}
+  .pad button:active,.pad button.pulsa{background:var(--papel2);transform:scale(.97)}
+  .pad button.bs{font-size:20px;color:var(--humo)}
+
+  /* ---- fijos del mes ---- */
+  .fijo{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--linea)}
+  .fijo:last-child{border-bottom:0}
+  .fijo .ck{width:24px;height:24px;border-radius:50%;flex:0 0 24px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid var(--linea);color:transparent}
+  .fijo.ok .ck{background:var(--verde);border-color:var(--verde);color:#fff}
+  .fijo .i{flex:1;min-width:0} .fijo .i b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fijo .i span{display:block;font-size:12px;color:var(--humo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fijo .m{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .fijo.ok .m{color:var(--humo);font-weight:500}
+  .fijo .ya{border:0;background:var(--verde);color:#fff;border-radius:999px;padding:8px 13px;font-size:13px;font-weight:700;white-space:nowrap;min-height:36px}
+  .fijo .ya:disabled{opacity:.5}
+  .fijosRes{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--humo);margin-top:4px}
+  .fijosRes button{border:0;font-size:13px;font-weight:600;color:var(--verdeTxt);padding:6px 0}
+
+  /* ---- sin señal ---- */
+  .cola{display:inline-block;margin-left:6px;background:var(--cempa);color:#16283D;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;vertical-align:1px}
 </style>
 </head>
 <body>
@@ -236,7 +262,8 @@
     <div class="seg"><button id="segGasto" class="on">Gasto</button><button id="segIngreso">Ingreso</button></div>
     <div class="card" id="formIngreso" hidden>
       <h3 id="iTitulo">NUEVO INGRESO</h3>
-      <input class="montoIn num" id="iMonto" inputmode="decimal" enterkeyhint="done" placeholder="$0" autocomplete="off">
+      <input class="montoIn num" id="iMonto" readonly inputmode="none" placeholder="$0" autocomplete="off" aria-label="Monto">
+      <div class="pad" data-para="iMonto"></div>
       <label class="t">De quién</label><div class="chips" id="iQuien"></div>
       <label class="t">¿De qué? <span style="font-weight:400">(opcional)</span></label>
       <input class="campo" id="iNota" placeholder="Quincena, consultas, bono…" autocomplete="off">
@@ -248,7 +275,8 @@
     </div>
     <div class="card" id="formGasto">
       <h3>NUEVO GASTO</h3>
-      <input class="montoIn num" id="gMonto" inputmode="decimal" enterkeyhint="done" placeholder="$0" autocomplete="off">
+      <input class="montoIn num" id="gMonto" readonly inputmode="none" placeholder="$0" autocomplete="off" aria-label="Monto">
+      <div class="pad" data-para="gMonto"></div>
       <div id="gFrecWrap">
         <label class="t">Frecuentes · un toque y listo</label>
         <div class="frec" id="gFrec"></div>
@@ -318,7 +346,7 @@ function confirmar(txt, si) {
    al enfocar un campo se abre espacio abajo y el campo sube justo debajo del encabezado, donde el teclado no lo tapa. */
 (function () {
   const app = document.getElementById('app');
-  const esCampo = el => el && el.matches && el.matches('input:not([type=date]):not([type=checkbox]), textarea');
+  const esCampo = el => el && el.matches && el.matches('input:not([type=date]):not([type=checkbox]):not([readonly]), textarea');
   const subir = el => {
     const head = document.querySelector('header.top').getBoundingClientRect().bottom;
     const delta = el.getBoundingClientRect().top - (head + 28);
@@ -412,8 +440,11 @@ async function run(fn, ...args) {
   const k = claveApi();
   if (!k) { pedirClave(); throw 'Falta la clave de acceso'; }
   let r, j;
-  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ k, fn, args }) }); }
-  catch (e) { throw 'Sin conexión. Intenta de nuevo.'; }
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const t = ctl && setTimeout(() => ctl.abort(), 30000);
+  try { r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ k, fn, args }), signal: ctl ? ctl.signal : undefined }); }
+  catch (e) { const x = new String('Sin conexión. Intenta de nuevo.'); x.red = true; throw x; }
+  finally { if (t) clearTimeout(t); }
   try { j = await r.json(); } catch (e) { throw 'No se pudo leer la respuesta. Intenta de nuevo.'; }
   if (j.clave) { try { localStorage.removeItem(CLAVE_K); } catch (e) {} pedirClave('La clave ya no es válida. Pega el link nuevo.'); throw 'Clave no válida'; }
   if (!j.ok) throw j.e || 'Algo salió mal';
@@ -505,6 +536,7 @@ function tarjetaHTML(t) {
 }
 
 async function cargarInicio() {
+  cargarFijos(); cargarEstado();
   const box = $('#inicio');
   const c = cacheGet('inicio');
   if (c) pintarInicio(c);
@@ -560,9 +592,11 @@ function pintarInicio(d) {
         ${d.semanaActual.depositos.length ? `<div style="margin-top:10px">${d.semanaActual.depositos.slice(0, 5).map(x => `<div class="dep"><span>${fCorta(x.fecha)} · ${esc(x.quien)}${x.nota ? ' · ' + esc(x.nota) : ''}</span><b>${mx(x.monto)}</b></div>`).join('')}</div>` : '<p class="hint">Captura los depósitos con + → Ingreso.</p>'}
       </div>` : ''}
 
+      <div id="fijosBox"></div>
       ${d.tarjetas.map(tarjetaHTML).join('')}
-      <p class="hint" style="text-align:center">Las tarjetas cuentan solo lo capturado aquí.</p>`;
+      <p class="hint" style="text-align:center">Las tarjetas cuentan solo lo capturado aquí.<span id="respaldoTxt"></span></p>`;
     $('#irMillon').onclick = () => ir('millon');
+    pintarFijos(); pintarEstado();
   }
 }
 
@@ -689,11 +723,12 @@ async function guardarIngreso() {
   btn.disabled = true; fab.disabled = true; btn.textContent = 'Guardando…';
   if (document.activeElement) document.activeElement.blur();
   try {
-    const r = await run('agregarIngreso', { monto, quien: I.quien, fecha: iFechaElegida(), nota: $('#iNota').value.trim() });
-    toast(`${r.quien} +${mx(monto)} · semana ${r.sem} va en ${mx(r.totalQuien)}`, async () => {
+    const res = await enviar('agregarIngreso', { id: nuevoId(), monto, quien: I.quien, fecha: iFechaElegida(), nota: $('#iNota').value.trim() }, `${I.quien} +${mx(monto)}`);
+    if (res.enCola) toast(`Sin señal: ${I.quien} +${mx(monto)} quedó en el teléfono y se manda solo`);
+    else { const r = res.r; toast(`${r.quien} +${mx(monto)} · semana ${r.sem} va en ${mx(r.totalQuien)}`, async () => {
       try { await run('borrarIngreso', r.filaLog, r.monto, r.quien); toast('Depósito eliminado'); cargarInicio(); }
       catch (e) { toast(e, null, true); }
-    });
+    }); }
     $('#iMonto').value = ''; $('#iNota').value = ''; $('#iFecha').hidden = true; I.fecha = 'hoy';
     arriba();
     run('getInicio').then(d => { cacheSet('inicio', d); pintarIngreso(); }).catch(() => {});
@@ -722,7 +757,7 @@ const fechaElegida = () => G.fecha === 'hoy' ? hoy() : G.fecha === 'ayer' ? ayer
 function aplicarPlantilla(x, conMonto) {
   Object.assign(G, { categoria: x.categoria, metodo: x.metodo && x.metodo !== '—' ? x.metodo : G.metodo, quien: x.quien || G.quien });
   $('#gNota').value = x.nota || '';
-  if (conMonto && x.ultimo && !numDe($('#gMonto').value)) $('#gMonto').value = x.ultimo;
+  if (conMonto && x.ultimo && !numDe($('#gMonto').value)) ponerRaw($('#gMonto'), String(x.ultimo));
   pintarGasto();
 }
 
@@ -764,16 +799,17 @@ async function guardar() {
   btn.disabled = true; fab.disabled = true; btn.textContent = 'Guardando…';
   if (document.activeElement) document.activeElement.blur();          // cierra el teclado
   try {
-    const r = await run('guardarGasto', { monto, categoria: G.categoria, metodo: G.metodo, quien: G.quien,
-      fecha: fechaElegida(), nota: $('#gNota').value.trim() });
-    toast(`${mx(monto)} en ${G.categoria} · guardado`, async () => {
-      try { await run('borrarGasto', r.fila, r.monto, r.categoria); toast('Gasto eliminado'); }
+    const res = await enviar('guardarGasto', { id: nuevoId(), monto, categoria: G.categoria, metodo: G.metodo, quien: G.quien,
+      fecha: fechaElegida(), nota: $('#gNota').value.trim() }, `${mx(monto)} en ${G.categoria}`);
+    if (res.enCola) toast(`Sin señal: ${mx(monto)} en ${G.categoria} quedó en el teléfono y se manda solo`);
+    else { const r = res.r; toast(`${mx(monto)} en ${G.categoria} · guardado`, async () => {
+      try { await run('borrarGasto', r.fila, r.monto, r.categoria); toast('Gasto eliminado'); cargarFijos(); }
       catch (e) { toast(e, null, true); }
-    });
+    }); }
     $('#gMonto').value = ''; $('#gNota').value = ''; $('#gSug').hidden = true; $('#gFecha').hidden = true;
     G.categoria = ''; G.fecha = 'hoy';
     arriba();
-    pintarGasto(); cargarCatalogos();
+    pintarGasto(); cargarCatalogos(); cargarFijos(true);
   } catch (e) { toast(e, null, true); }
   finally { guardando = false; btn.disabled = false; fab.disabled = false; btn.textContent = 'Guardar gasto'; }
 }
@@ -882,9 +918,152 @@ async function editarGasto(g) {
   };
 }
 
+/* ======================= NUMBER PAD =======================
+   El monto se escribe con un teclado propio: no sale el teclado del iPhone y no tapa nada. */
+function fmtMonto(raw) {
+  if (!raw) return '';
+  const [e, d] = raw.split('.');
+  return '$' + (+e || 0).toLocaleString('es-MX') + (d !== undefined ? '.' + d : '');
+}
+function rawDe(inp) {
+  if (inp.dataset.shown === inp.value) return inp.dataset.raw || '';
+  const n = numDe(inp.value); return n ? String(Math.round(n * 100) / 100) : '';
+}
+function ponerRaw(inp, raw) { inp.value = fmtMonto(raw); inp.dataset.raw = raw; inp.dataset.shown = inp.value; }
+function tecla(inp, k) {
+  let raw = rawDe(inp);
+  if (k === '⌫') raw = raw.slice(0, -1);
+  else if (k === '.') { if (!raw.includes('.')) raw = (raw || '0') + '.'; }
+  else {
+    const [e, d] = raw.split('.');
+    if (d !== undefined) { if (d.length < 2) raw += k; }
+    else if ((e || '').length < 7) raw = (raw === '0' ? '' : raw) + k;
+  }
+  ponerRaw(inp, raw);
+}
+function armarPads() {
+  document.querySelectorAll('.pad').forEach(pad => {
+    const inp = document.getElementById(pad.dataset.para);
+    pad.innerHTML = ['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k =>
+      `<button type="button" data-k="${k}" class="${k === '⌫' ? 'bs' : ''}" aria-label="${k === '⌫' ? 'Borrar' : k === '.' ? 'Punto decimal' : k}">${k}</button>`).join('');
+    let largo;
+    pad.querySelectorAll('button').forEach(b => {
+      // pointerdown: responde al instante (sin el retraso del click en iPhone)
+      b.addEventListener('pointerdown', e => {
+        e.preventDefault(); b.classList.add('pulsa'); tecla(inp, b.dataset.k);
+        if (b.dataset.k === '⌫') largo = setTimeout(() => { ponerRaw(inp, ''); }, 550);
+      });
+      const fin = () => { b.classList.remove('pulsa'); clearTimeout(largo); };
+      b.addEventListener('pointerup', fin); b.addEventListener('pointerleave', fin); b.addEventListener('pointercancel', fin);
+    });
+  });
+  // en computadora también se puede teclear
+  document.addEventListener('keydown', e => {
+    if (vista !== 'gasto' || e.metaKey || e.ctrlKey || esCampoTexto(document.activeElement)) return;
+    const inp = SEG === 'ingreso' ? $('#iMonto') : $('#gMonto');
+    if (/^[0-9]$/.test(e.key) || e.key === '.') { tecla(inp, e.key); e.preventDefault(); }
+    else if (e.key === 'Backspace') { tecla(inp, '⌫'); e.preventDefault(); }
+    else if (e.key === 'Enter') { SEG === 'ingreso' ? guardarIngreso() : guardar(); e.preventDefault(); }
+  });
+}
+const esCampoTexto = el => el && el.matches && el.matches('input:not([readonly]), textarea, select');
+
+/* ======================= SIN SEÑAL =======================
+   Si no hay internet, la captura se queda en el teléfono y se manda sola al volver la señal.
+   Cada captura lleva un id: si se manda dos veces, el archivo no la duplica. */
+const COLA_K = 'hq.cola';
+const nuevoId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const colaLee = () => { try { return JSON.parse(localStorage.getItem(COLA_K) || '[]'); } catch (e) { return []; } };
+function colaGuarda(l) { try { localStorage.setItem(COLA_K, JSON.stringify(l)); } catch (e) {} pintarCola(); }
+function pintarCola() {
+  const n = colaLee().length;
+  $('#subtitulo').innerHTML = 'Omar y Gina' + (n ? `<span class="cola">${n} por enviar</span>` : '');
+}
+async function enviar(fn, obj, desc) {
+  try { return { r: await run(fn, obj) }; }
+  catch (e) {
+    if (e && e.red) { const l = colaLee(); l.push({ fn, obj, desc, ts: Date.now() }); colaGuarda(l); return { enCola: true }; }
+    throw e;
+  }
+}
+let vaciando = false;
+async function vaciarCola() {
+  if (vaciando || !colaLee().length || !claveApi()) return;
+  vaciando = true; let ok = 0;
+  try {
+    for (const it of colaLee()) {
+      try { await run(it.fn, it.obj); ok++; }
+      catch (e) { if (e && e.red) break; toast(`No se pudo guardar ${it.desc}: ${e}`, null, true); }
+      colaGuarda(colaLee().filter(x => x.obj.id !== it.obj.id));
+    }
+  } finally { vaciando = false; }
+  if (ok) {
+    toast(ok === 1 ? 'Ya se mandó lo que guardaste sin señal' : `Ya se mandaron ${ok} capturas que estaban sin señal`);
+    cargarCatalogos(); if (vista === 'inicio') cargarInicio(); if (vista === 'gastos') cargarGastosMes();
+  }
+}
+
+/* ======================= FIJOS DEL MES =======================
+   Lo que se paga cada mes con el mismo monto. Un toque lo captura con el monto de siempre. */
+let fijos = cacheGet('fijos'), verFijosHechos = false;
+async function cargarFijos(silencio) {
+  try { const d = await run('getFijos'); fijos = d; cacheSet('fijos', d); pintarFijos(); }
+  catch (e) { if (!silencio && !fijos) {} }
+}
+function pintarFijos() {
+  const box = document.getElementById('fijosBox');
+  if (!box || !fijos || !fijos.fijos.length) { if (box) box.innerHTML = ''; return; }
+  const mesNom = MESES[+fijos.mes.slice(5, 7) - 1];
+  const l = fijos.fijos, hechos = l.filter(x => x.hecho).length, pend = l.filter(x => !x.hecho);
+  const fila = (x, i) => `
+    <div class="fijo ${x.hecho ? 'ok' : ''}">
+      <div class="ck">✓</div>
+      <div class="i"><b>${esc(x.nota || x.categoria)}</b><span>${x.hecho ? 'capturado ' + fDia(x.fechaMes) : esc(x.metodo) + ' · suele ser el ' + x.dia}</span></div>
+      <div class="m">${mx(x.hecho ? x.montoMes : x.monto)}</div>
+      ${x.hecho ? '' : `<button class="ya" data-i="${i}">Ya</button>`}
+    </div>`;
+  const visibles = l.map((x, i) => [x, i]).filter(([x]) => !x.hecho || verFijosHechos);
+  box.innerHTML = `
+    <div class="card">
+      <h3>FIJOS DE ${mesNom.toUpperCase()} · ${hechos} DE ${l.length} CAPTURADOS</h3>
+      ${pend.length ? '' : `<div class="nota ok" style="margin-top:0">Todos los fijos de ${mesNom} ya están. ✓</div>`}
+      ${visibles.map(([x, i]) => fila(x, i)).join('')}
+      <div class="fijosRes"><span>${pend.length ? 'Faltan ' + mx(pend.reduce((s, x) => s + x.monto, 0)) + ' · "Ya" lo captura con el monto de siempre' : ''}</span>
+        ${hechos ? `<button id="fijosVer">${verFijosHechos ? 'Ocultar capturados' : 'Ver los ' + hechos + ' capturados'}</button>` : ''}</div>
+    </div>`;
+  const v = document.getElementById('fijosVer'); if (v) v.onclick = () => { verFijosHechos = !verFijosHechos; pintarFijos(); };
+  box.querySelectorAll('.ya').forEach(b => b.onclick = () => capturarFijo(l[+b.dataset.i], b));
+}
+async function capturarFijo(x, b) {
+  b.disabled = true;
+  try {
+    const res = await enviar('guardarGasto', { id: nuevoId(), monto: x.monto, categoria: x.categoria, metodo: x.metodo, quien: x.quien, fecha: hoy(), nota: x.nota },
+      `${x.nota || x.categoria} ${mx(x.monto)}`);
+    Object.assign(x, { hecho: true, montoMes: x.monto, fechaMes: hoy() }); cacheSet('fijos', fijos); pintarFijos();
+    if (res.enCola) toast(`Sin señal: ${x.nota || x.categoria} quedó en el teléfono y se manda solo`);
+    else { const r = res.r; toast(`${x.nota || x.categoria} ${mx(x.monto)} · capturado`, async () => {
+      try { await run('borrarGasto', r.fila, r.monto, r.categoria); toast('Gasto eliminado'); cargarFijos(); cargarInicio(); }
+      catch (e) { toast(e, null, true); }
+    }); run('getInicio').then(d => { cacheSet('inicio', d); if (vista === 'inicio') pintarInicio(d); }).catch(() => {}); }
+  } catch (e) { b.disabled = false; toast(e, null, true); }
+}
+
+/* ======================= RESPALDO ======================= */
+let estado = cacheGet('estado');
+async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
+function pintarEstado() {
+  const el = document.getElementById('respaldoTxt');
+  if (el) el.textContent = estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '';
+}
+
 /* ======================= arranque ======================= */
 const VISTA_INICIAL = new URLSearchParams(location.search).get('v') || 'inicio';
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+armarPads(); pintarCola();
+window.addEventListener('online', vaciarCola);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { vaciarCola(); if (vista === 'inicio') cargarInicio(); } });
+setInterval(vaciarCola, 30000);
+setTimeout(vaciarCola, 1500);
 if (!claveApi()) pedirClave();
 else {
   cargarCatalogos();
