@@ -1129,7 +1129,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v8';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v9';
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
