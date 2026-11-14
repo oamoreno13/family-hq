@@ -246,13 +246,12 @@
   .fijo .ck{width:24px;height:24px;border-radius:50%;flex:0 0 24px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid var(--linea);color:transparent}
   .fijo.ok .ck{background:var(--verde);border-color:var(--verde);color:#fff}
   .fijo .i{flex:1;min-width:0} .fijo .i b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .fijo .i span{display:block;font-size:12px;color:var(--humo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fijo .i span{display:block;font-size:12px;color:var(--humo)}
   .fijo .m{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .fijo.ok .m{color:var(--humo);font-weight:500}
+  .fijo .m.pagado{color:var(--tinta);font-weight:700}
+  .fijo .i b small{font-weight:500;font-size:11.5px;color:var(--humo);margin-left:4px}
   .fijo .ya{border:0;background:var(--verde);color:#fff;border-radius:999px;padding:8px 13px;font-size:13px;font-weight:700;white-space:nowrap;min-height:36px}
   .fijo .ya:disabled{opacity:.5}
-  .fijosRes{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--humo);margin-top:4px}
-  .fijosRes button{border:0;font-size:13px;font-weight:600;color:var(--verdeTxt);padding:6px 0}
 
   /* ---- sin señal ---- */
   .cola{display:inline-block;margin-left:6px;background:var(--cempa);color:#16283D;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;vertical-align:1px}
@@ -823,7 +822,7 @@ async function guardar() {
     $('#gMonto').value = ''; $('#gNota').value = ''; $('#gSug').hidden = true; $('#gFecha').hidden = true; ponerPista('');
     G.categoria = ''; G.fecha = 'hoy';
     arriba();
-    pintarGasto(); cargarCatalogos(); cargarFijos(true);
+    pintarGasto(); cargarCatalogos(); cargarFijos();
   } catch (e) { toast(e, null, true); }
   finally { guardando = false; btn.disabled = false; fab.disabled = false; btn.textContent = 'Guardar gasto'; }
 }
@@ -1042,43 +1041,40 @@ async function vaciarCola() {
   }
 }
 
-/* ======================= FIJOS DEL MES =======================
-   Lo que se paga cada mes con el mismo monto. Un toque lo captura con el monto de siempre. */
-let fijos = cacheGet('fijos'), verFijosHechos = false;
-async function cargarFijos(silencio) {
-  try { const d = await run('getFijos'); fijos = d; cacheSet('fijos', d); pintarFijos(); }
-  catch (e) { if (!silencio && !fijos) {} }
+/* ======================= SERVICIOS DEL MES =======================
+   Luz (cada 2 meses), agua y gas: pendiente con lo de la vez pasada, o pagado con cuánto.
+   Se marcan pagados solos si ya están capturados en Gastos (desde la app o en el archivo). */
+let fijos = cacheGet('fijos');
+async function cargarFijos() {
+  try { const d = await run('getFijos'); fijos = d; cacheSet('fijos', d); pintarFijos(); } catch (e) {}
 }
 function pintarFijos() {
   const box = document.getElementById('fijosBox');
-  if (!box || !fijos || !fijos.fijos.length) { if (box) box.innerHTML = ''; return; }
+  if (!box || !fijos || !fijos.fijos || !fijos.fijos.length) { if (box) box.innerHTML = ''; return; }
   const mesNom = MESES[+fijos.mes.slice(5, 7) - 1];
-  const l = fijos.fijos, alDia = x => x.hecho || x.noToca;
-  const ok = l.filter(alDia).length, pend = l.filter(x => !alDia(x));
-  const antes = x => x.historial && x.historial.length ? 'la vez pasada ' + mx(x.historial[0].monto) + ' · ' + fCorta(x.historial[0].fecha) : 'sin pagos anteriores';
-  const sub = x => x.hecho ? 'capturado ' + fDia(x.fechaMes) + (x.variable && x.historial.length ? ' · antes ' + mx(x.historial[0].monto) : '')
-    : x.noToca ? 'toca en ' + MESES[+x.toca.slice(5, 7) - 1] + ' · ' + antes(x)
-    : x.variable ? (x.historial && x.historial.length ? 'la vez pasada fue el ' + fCorta(x.historial[0].fecha) : 'sin pagos anteriores')
-    : esc(x.metodo) + ' · suele ser el ' + x.dia;
-  const fila = (x, i) => `
-    <div class="fijo ${alDia(x) ? 'ok' : ''}">
-      <div class="ck">${x.noToca && !x.hecho ? '–' : '✓'}</div>
-      <div class="i"><b>${esc(x.variable ? x.nombre : (x.nota || x.categoria))}${x.variable && x.cada > 1 ? ' <span style="display:inline;font-weight:400">· cada ' + x.cada + ' meses</span>' : ''}</b><span>${sub(x)}</span></div>
-      <div class="m">${x.hecho ? mx(x.montoMes) : x.variable ? (x.noToca ? '' : '<span style="font-weight:400;color:var(--humo)">≈</span>' + mx(x.monto)) : mx(x.monto)}</div>
-      ${alDia(x) ? '' : `<button class="ya" data-i="${i}">${x.variable ? 'Capturar' : 'Ya'}</button>`}
-    </div>`;
-  const visibles = l.map((x, i) => [x, i]).filter(([x]) => !alDia(x) || verFijosHechos);
-  const falta = pend.reduce((s, x) => s + x.monto, 0), aprox = pend.some(x => x.variable);
+  const l = fijos.fijos, listos = l.filter(x => x.hecho || x.noToca).length;
+  const bim = x => x.cada > 1 ? ' <small>bimestral</small>' : '';
+  const fila = (x, i) => {
+    const h = x.historial || [];
+    if (x.hecho) return `
+      <div class="fijo ok"><div class="ck">✓</div>
+        <div class="i"><b>${esc(x.nombre)}${bim(x)}</b><span>Pagado ${fCorta(x.fechaMes)}${h.length ? ' (la vez pasada ' + mx(h[0].monto) + ')' : ''}</span></div>
+        <div class="m pagado">${mx(x.montoMes)}</div></div>`;
+    if (x.noToca) return `
+      <div class="fijo ok"><div class="ck">✓</div>
+        <div class="i"><b>${esc(x.nombre)}${bim(x)}</b><span>Pagado ${fCorta(x.fechaUlt)} · el siguiente llega en ${MESES[+x.toca.slice(5, 7) - 1]}</span></div>
+        <div class="m pagado">${mx(x.monto)}</div></div>`;
+    return `
+      <div class="fijo"><div class="ck"></div>
+        <div class="i"><b>${esc(x.nombre)}${bim(x)}</b><span>Pendiente ${h.length ? '(la vez pasada ' + mx(h[0].monto) + ')' : '(primera vez)'}</span></div>
+        <button class="ya" data-i="${i}">Ya pagué</button></div>`;
+  };
   box.innerHTML = `
     <div class="card">
-      <h3>FIJOS DE ${mesNom.toUpperCase()} · ${ok} DE ${l.length} AL DÍA</h3>
-      ${pend.length ? '' : `<div class="nota ok" style="margin-top:0">Todos los fijos de ${mesNom} ya están. ✓</div>`}
-      ${visibles.map(([x, i]) => fila(x, i)).join('')}
-      <div class="fijosRes"><span>${pend.length ? 'Faltan ' + (aprox ? '≈' : '') + mx(falta) : ''}</span>
-        ${ok ? `<button id="fijosVer">${verFijosHechos ? 'Ocultar los que ya están' : 'Ver los ' + ok + ' que ya están'}</button>` : ''}</div>
+      <h3>SERVICIOS DE ${mesNom.toUpperCase()} · ${listos} DE ${l.length} PAGADOS</h3>
+      ${l.map(fila).join('')}
     </div>`;
-  const v = document.getElementById('fijosVer'); if (v) v.onclick = () => { verFijosHechos = !verFijosHechos; pintarFijos(); };
-  box.querySelectorAll('.ya').forEach(b => b.onclick = () => { const x = l[+b.dataset.i]; x.variable ? capturarVariable(x) : capturarFijo(x, b); });
+  box.querySelectorAll('.ya').forEach(b => b.onclick = () => capturarVariable(l[+b.dataset.i]));
 }
 /* Servicio con monto que cambia (luz, agua, gas): abre la captura ya llena; solo falta el monto. */
 async function capturarVariable(x) {
@@ -1092,20 +1088,6 @@ async function capturarVariable(x) {
     (h.length > 1 ? ' · antes ' + h.slice(1).map(z => `<b>${mx(z.monto)}</b>`).join(', ') : '') : `${esc(x.nombre)} · primera vez que se captura aquí`);
   abrirPad($('#gMonto'));
 }
-async function capturarFijo(x, b) {
-  b.disabled = true;
-  try {
-    const res = await enviar('guardarGasto', { id: nuevoId(), monto: x.monto, categoria: x.categoria, metodo: x.metodo, quien: x.quien, fecha: hoy(), nota: x.nota },
-      `${x.nota || x.categoria} ${mx(x.monto)}`);
-    Object.assign(x, { hecho: true, montoMes: x.monto, fechaMes: hoy() }); cacheSet('fijos', fijos); pintarFijos();
-    if (res.enCola) toast(`Sin señal: ${x.nota || x.categoria} quedó en el teléfono y se manda solo`);
-    else { const r = res.r; toast(`${x.nota || x.categoria} ${mx(x.monto)} · capturado`, async () => {
-      try { await run('borrarGasto', r.fila, r.monto, r.categoria); toast('Gasto eliminado'); cargarFijos(); cargarInicio(); }
-      catch (e) { toast(e, null, true); }
-    }); run('getInicio').then(d => { cacheSet('inicio', d); if (vista === 'inicio') pintarInicio(d); }).catch(() => {}); }
-  } catch (e) { b.disabled = false; toast(e, null, true); }
-}
-
 /* ======================= RESPALDO ======================= */
 let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
