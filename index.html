@@ -222,11 +222,23 @@
   /* ---- number pad ---- */
   .montoIn[readonly]{cursor:default;caret-color:transparent}
   .montoIn.vivo{border-color:var(--verde)}
-  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;user-select:none;-webkit-user-select:none}
-  .pad button{border:0;border-radius:12px;background:var(--papel);color:var(--tinta);font-size:24px;font-weight:500;height:54px;
-    font-variant-numeric:tabular-nums;touch-action:manipulation;transition:background .08s,transform .08s}
-  .pad button:active,.pad button.pulsa{background:var(--papel2);transform:scale(.97)}
+  .montoIn{cursor:pointer}
+  #padSheet{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--papel2);border-top:1px solid var(--linea);
+    padding:8px 10px calc(10px + env(safe-area-inset-bottom));box-shadow:0 -8px 24px rgba(0,0,0,.12);animation:sube .16s ease}
+  @keyframes sube{from{transform:translateY(100%)}to{transform:none}}
+  .padTop{max-width:560px;margin:0 auto 6px;min-height:18px;font-size:12.5px;color:var(--humo);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .padTop b{color:var(--tinta)}
+  .pad{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:7px;user-select:none;-webkit-user-select:none}
+  .pad button{border:0;border-radius:11px;background:var(--blanco);color:var(--tinta);font-size:24px;font-weight:500;height:52px;
+    font-variant-numeric:tabular-nums;touch-action:manipulation;transition:background .08s,transform .08s;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+  .pad button:active,.pad button.pulsa{background:var(--papel);transform:scale(.97)}
   .pad button.bs{font-size:20px;color:var(--humo)}
+  .pad button.listo{grid-column:4;grid-row:2 / span 3;height:auto;background:var(--verde);color:#fff;font-size:17px;font-weight:700}
+  .pad button.listo:active{background:var(--verde);opacity:.85}
+  body.conPad #app main{padding-bottom:calc(320px + env(safe-area-inset-bottom))}
+  body.conPad #toast{bottom:calc(300px + env(safe-area-inset-bottom))}
+  .pista{font-size:12.5px;color:var(--humo);margin-top:6px}
+  .pista b{color:var(--tinta);font-variant-numeric:tabular-nums}
 
   /* ---- fijos del mes ---- */
   .fijo{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--linea)}
@@ -263,7 +275,6 @@
     <div class="card" id="formIngreso" hidden>
       <h3 id="iTitulo">NUEVO INGRESO</h3>
       <input class="montoIn num" id="iMonto" readonly inputmode="none" placeholder="$0" autocomplete="off" aria-label="Monto">
-      <div class="pad" data-para="iMonto"></div>
       <label class="t">De quién</label><div class="chips" id="iQuien"></div>
       <label class="t">¿De qué? <span style="font-weight:400">(opcional)</span></label>
       <input class="campo" id="iNota" placeholder="Quincena, consultas, bono…" autocomplete="off">
@@ -276,7 +287,7 @@
     <div class="card" id="formGasto">
       <h3>NUEVO GASTO</h3>
       <input class="montoIn num" id="gMonto" readonly inputmode="none" placeholder="$0" autocomplete="off" aria-label="Monto">
-      <div class="pad" data-para="gMonto"></div>
+      <p class="pista" id="gPista" hidden></p>
       <div id="gFrecWrap">
         <label class="t">Frecuentes · un toque y listo</label>
         <div class="frec" id="gFrec"></div>
@@ -316,6 +327,7 @@
   <button data-v="gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14h5"/></svg>Gastos</button>
 </nav>
 
+<div id="padSheet" hidden><div class="padTop" id="padPista"></div><div class="pad"></div></div>
 <div id="toast"><span id="toastTxt"></span><button id="toastBtn" hidden>Deshacer</button></div>
 <div id="modal" hidden></div>
 
@@ -477,6 +489,7 @@ function chips(cont, opciones, valor, onPick) {
 /* ======================= navegación ======================= */
 let vista = 'inicio';
 function ir(v) {
+  if (v !== 'gasto') cerrarPad();
   vista = v;
   document.querySelectorAll('.vista').forEach(s => s.classList.toggle('activa', s.id === 'v-' + v));
   document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
@@ -498,7 +511,7 @@ function modoBoton() {
 document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.v === 'gasto' && vista === 'gasto') return SEG === 'ingreso' ? guardarIngreso() : guardar();
   ir(b.dataset.v);
-  if (b.dataset.v === 'gasto') (SEG === 'ingreso' ? $('#iMonto') : $('#gMonto')).focus();   // dentro del toque: iOS sí abre el teclado
+  if (b.dataset.v === 'gasto') { ponerPista(''); const inp = SEG === 'ingreso' ? $('#iMonto') : $('#gMonto'); if (!numDe(inp.value)) abrirPad(inp); }
 });
 $('#btnRef').onclick = () => { catalogo = null; ir(vista); };
 /** Catálogos: usa lo cacheado al instante y refresca en segundo plano. */
@@ -696,7 +709,8 @@ function segmento(v) {
   $('#segGasto').classList.toggle('on', v === 'gasto'); $('#segIngreso').classList.toggle('on', v === 'ingreso');
   $('#formGasto').hidden = v !== 'gasto'; $('#formIngreso').hidden = v !== 'ingreso';
   modoBoton();
-  if (v === 'ingreso') { pintarIngreso(); $('#iMonto').focus(); } else { $('#gMonto').focus(); }
+  cerrarPad();
+  if (v === 'ingreso') { pintarIngreso(); if (!numDe($('#iMonto').value)) abrirPad($('#iMonto')); } else if (!numDe($('#gMonto').value)) abrirPad($('#gMonto'));
 }
 $('#segGasto').onclick = () => segmento('gasto');
 $('#segIngreso').onclick = () => segmento('ingreso');
@@ -717,7 +731,7 @@ let guardandoI = false;
 async function guardarIngreso() {
   if (guardandoI) return;
   const monto = numDe($('#iMonto').value);
-  if (!(monto > 0)) { $('#iMonto').focus(); return toast('Escribe el monto', null, true); }
+  if (!(monto > 0)) { abrirPad($('#iMonto')); return toast('Escribe el monto', null, true); }
   guardandoI = true;
   const btn = $('#iGuardar'), fab = document.querySelector('nav.tabs .mas');
   btn.disabled = true; fab.disabled = true; btn.textContent = 'Guardando…';
@@ -772,7 +786,7 @@ function pintarGasto() {
   catalogo.frecuentes.forEach(x => {
     const b = document.createElement('button');
     b.innerHTML = `<b>${esc(x.nota || x.categoria)}</b><span>${esc(x.categoria)} · ${esc(x.metodo)}</span>`;
-    b.onclick = () => { aplicarPlantilla(x, true); if (!numDe($('#gMonto').value)) { $('#gMonto').focus(); } };
+    b.onclick = () => { aplicarPlantilla(x, true); if (!numDe($('#gMonto').value)) abrirPad($('#gMonto')); };
     f.appendChild(b);
   });
 }
@@ -792,7 +806,7 @@ let guardando = false;
 async function guardar() {
   if (guardando) return;
   const monto = numDe($('#gMonto').value);
-  if (!(monto > 0)) { $('#gMonto').focus(); return toast('Escribe el monto', null, true); }
+  if (!(monto > 0)) { abrirPad($('#gMonto')); return toast('Escribe el monto', null, true); }
   if (!G.categoria) return toast('Elige una categoría', null, true);
   guardando = true;
   const btn = $('#gGuardar'), fab = document.querySelector('nav.tabs .mas');
@@ -806,7 +820,7 @@ async function guardar() {
       try { await run('borrarGasto', r.fila, r.monto, r.categoria); toast('Gasto eliminado'); cargarFijos(); }
       catch (e) { toast(e, null, true); }
     }); }
-    $('#gMonto').value = ''; $('#gNota').value = ''; $('#gSug').hidden = true; $('#gFecha').hidden = true;
+    $('#gMonto').value = ''; $('#gNota').value = ''; $('#gSug').hidden = true; $('#gFecha').hidden = true; ponerPista('');
     G.categoria = ''; G.fecha = 'hoy';
     arriba();
     pintarGasto(); cargarCatalogos(); cargarFijos(true);
@@ -941,29 +955,54 @@ function tecla(inp, k) {
   }
   ponerRaw(inp, raw);
 }
+let padInp = null;
+function abrirPad(inp) {
+  if (padInp && padInp !== inp) padInp.classList.remove('vivo');
+  padInp = inp; inp.classList.add('vivo');
+  $('#padSheet').hidden = false; document.body.classList.add('conPad');
+  if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();   // cierra el teclado del iPhone si estaba abierto
+  $('#padPista').innerHTML = inp.id === 'gMonto' && !$('#gPista').hidden ? $('#gPista').innerHTML : '';
+  setTimeout(() => {
+    const app = document.getElementById('app'), head = document.querySelector('header.top').getBoundingClientRect().bottom;
+    const d = inp.getBoundingClientRect().top - (head + 14); if (Math.abs(d) > 4) app.scrollTop += d;
+  }, 20);
+}
+function cerrarPad() {
+  if (!padInp) return;
+  padInp.classList.remove('vivo'); padInp = null;
+  $('#padSheet').hidden = true; document.body.classList.remove('conPad');
+}
+function ponerPista(html) { $('#gPista').innerHTML = html; $('#gPista').hidden = !html; if (padInp && padInp.id === 'gMonto') $('#padPista').innerHTML = html; }
 function armarPads() {
-  document.querySelectorAll('.pad').forEach(pad => {
-    const inp = document.getElementById(pad.dataset.para);
-    pad.innerHTML = ['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k =>
-      `<button type="button" data-k="${k}" class="${k === '⌫' ? 'bs' : ''}" aria-label="${k === '⌫' ? 'Borrar' : k === '.' ? 'Punto decimal' : k}">${k}</button>`).join('');
-    let largo;
-    pad.querySelectorAll('button').forEach(b => {
-      // pointerdown: responde al instante (sin el retraso del click en iPhone)
-      b.addEventListener('pointerdown', e => {
-        e.preventDefault(); b.classList.add('pulsa'); tecla(inp, b.dataset.k);
-        if (b.dataset.k === '⌫') largo = setTimeout(() => { ponerRaw(inp, ''); }, 550);
-      });
-      const fin = () => { b.classList.remove('pulsa'); clearTimeout(largo); };
-      b.addEventListener('pointerup', fin); b.addEventListener('pointerleave', fin); b.addEventListener('pointercancel', fin);
+  const pad = document.querySelector('#padSheet .pad');
+  pad.innerHTML = ['1','2','3','⌫','4','5','6','Listo','7','8','9','.','0','000'].map(k =>
+    `<button type="button" data-k="${k}" class="${k === '⌫' ? 'bs' : k === 'Listo' ? 'listo' : ''}" aria-label="${k === '⌫' ? 'Borrar' : k === '.' ? 'Punto decimal' : k === '000' ? 'Tres ceros' : k}">${k}</button>`).join('');
+  let largo;
+  pad.querySelectorAll('button').forEach(b => {
+    // pointerdown: responde al instante (sin el retraso del click en iPhone)
+    b.addEventListener('pointerdown', e => {
+      e.preventDefault(); if (!padInp) return;
+      const k = b.dataset.k; b.classList.add('pulsa');
+      if (k === 'Listo') { cerrarPad(); return; }
+      if (k === '000') { ['0','0','0'].forEach(z => tecla(padInp, z)); return; }
+      tecla(padInp, k);
+      if (k === '⌫') { const inp = padInp; largo = setTimeout(() => ponerRaw(inp, ''), 550); }
     });
+    const fin = () => { b.classList.remove('pulsa'); clearTimeout(largo); };
+    b.addEventListener('pointerup', fin); b.addEventListener('pointerleave', fin); b.addEventListener('pointercancel', fin);
   });
-  // en computadora también se puede teclear
+  ['#gMonto', '#iMonto'].forEach(id => $(id).addEventListener('click', () => abrirPad($(id))));
+  // tocar fuera del pad lo cierra (sin perder el toque)
+  document.addEventListener('pointerdown', e => {
+    if (padInp && !e.target.closest('#padSheet') && !e.target.closest('.montoIn')) cerrarPad();
+  }, true);
+  // en computadora: números, punto y borrar escriben; Enter o Esc solo cierran (no guardan)
   document.addEventListener('keydown', e => {
     if (vista !== 'gasto' || e.metaKey || e.ctrlKey || esCampoTexto(document.activeElement)) return;
-    const inp = SEG === 'ingreso' ? $('#iMonto') : $('#gMonto');
-    if (/^[0-9]$/.test(e.key) || e.key === '.') { tecla(inp, e.key); e.preventDefault(); }
+    const inp = padInp || (SEG === 'ingreso' ? $('#iMonto') : $('#gMonto'));
+    if (/^[0-9]$/.test(e.key) || e.key === '.') { if (!padInp) abrirPad(inp); tecla(inp, e.key); e.preventDefault(); }
     else if (e.key === 'Backspace') { tecla(inp, '⌫'); e.preventDefault(); }
-    else if (e.key === 'Enter') { SEG === 'ingreso' ? guardarIngreso() : guardar(); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === 'Escape') { cerrarPad(); e.preventDefault(); }
   });
 }
 const esCampoTexto = el => el && el.matches && el.matches('input:not([readonly]), textarea, select');
@@ -1014,25 +1053,44 @@ function pintarFijos() {
   const box = document.getElementById('fijosBox');
   if (!box || !fijos || !fijos.fijos.length) { if (box) box.innerHTML = ''; return; }
   const mesNom = MESES[+fijos.mes.slice(5, 7) - 1];
-  const l = fijos.fijos, hechos = l.filter(x => x.hecho).length, pend = l.filter(x => !x.hecho);
+  const l = fijos.fijos, alDia = x => x.hecho || x.noToca;
+  const ok = l.filter(alDia).length, pend = l.filter(x => !alDia(x));
+  const antes = x => x.historial && x.historial.length ? 'la vez pasada ' + mx(x.historial[0].monto) + ' · ' + fCorta(x.historial[0].fecha) : 'sin pagos anteriores';
+  const sub = x => x.hecho ? 'capturado ' + fDia(x.fechaMes) + (x.variable && x.historial.length ? ' · antes ' + mx(x.historial[0].monto) : '')
+    : x.noToca ? 'toca en ' + MESES[+x.toca.slice(5, 7) - 1] + ' · ' + antes(x)
+    : x.variable ? (x.historial && x.historial.length ? 'la vez pasada fue el ' + fCorta(x.historial[0].fecha) : 'sin pagos anteriores')
+    : esc(x.metodo) + ' · suele ser el ' + x.dia;
   const fila = (x, i) => `
-    <div class="fijo ${x.hecho ? 'ok' : ''}">
-      <div class="ck">✓</div>
-      <div class="i"><b>${esc(x.nota || x.categoria)}</b><span>${x.hecho ? 'capturado ' + fDia(x.fechaMes) : esc(x.metodo) + ' · suele ser el ' + x.dia}</span></div>
-      <div class="m">${mx(x.hecho ? x.montoMes : x.monto)}</div>
-      ${x.hecho ? '' : `<button class="ya" data-i="${i}">Ya</button>`}
+    <div class="fijo ${alDia(x) ? 'ok' : ''}">
+      <div class="ck">${x.noToca && !x.hecho ? '–' : '✓'}</div>
+      <div class="i"><b>${esc(x.variable ? x.nombre : (x.nota || x.categoria))}${x.variable && x.cada > 1 ? ' <span style="display:inline;font-weight:400">· cada ' + x.cada + ' meses</span>' : ''}</b><span>${sub(x)}</span></div>
+      <div class="m">${x.hecho ? mx(x.montoMes) : x.variable ? (x.noToca ? '' : '<span style="font-weight:400;color:var(--humo)">≈</span>' + mx(x.monto)) : mx(x.monto)}</div>
+      ${alDia(x) ? '' : `<button class="ya" data-i="${i}">${x.variable ? 'Capturar' : 'Ya'}</button>`}
     </div>`;
-  const visibles = l.map((x, i) => [x, i]).filter(([x]) => !x.hecho || verFijosHechos);
+  const visibles = l.map((x, i) => [x, i]).filter(([x]) => !alDia(x) || verFijosHechos);
+  const falta = pend.reduce((s, x) => s + x.monto, 0), aprox = pend.some(x => x.variable);
   box.innerHTML = `
     <div class="card">
-      <h3>FIJOS DE ${mesNom.toUpperCase()} · ${hechos} DE ${l.length} CAPTURADOS</h3>
+      <h3>FIJOS DE ${mesNom.toUpperCase()} · ${ok} DE ${l.length} AL DÍA</h3>
       ${pend.length ? '' : `<div class="nota ok" style="margin-top:0">Todos los fijos de ${mesNom} ya están. ✓</div>`}
       ${visibles.map(([x, i]) => fila(x, i)).join('')}
-      <div class="fijosRes"><span>${pend.length ? 'Faltan ' + mx(pend.reduce((s, x) => s + x.monto, 0)) + ' · "Ya" lo captura con el monto de siempre' : ''}</span>
-        ${hechos ? `<button id="fijosVer">${verFijosHechos ? 'Ocultar capturados' : 'Ver los ' + hechos + ' capturados'}</button>` : ''}</div>
+      <div class="fijosRes"><span>${pend.length ? 'Faltan ' + (aprox ? '≈' : '') + mx(falta) : ''}</span>
+        ${ok ? `<button id="fijosVer">${verFijosHechos ? 'Ocultar los que ya están' : 'Ver los ' + ok + ' que ya están'}</button>` : ''}</div>
     </div>`;
   const v = document.getElementById('fijosVer'); if (v) v.onclick = () => { verFijosHechos = !verFijosHechos; pintarFijos(); };
-  box.querySelectorAll('.ya').forEach(b => b.onclick = () => capturarFijo(l[+b.dataset.i], b));
+  box.querySelectorAll('.ya').forEach(b => b.onclick = () => { const x = l[+b.dataset.i]; x.variable ? capturarVariable(x) : capturarFijo(x, b); });
+}
+/* Servicio con monto que cambia (luz, agua, gas): abre la captura ya llena; solo falta el monto. */
+async function capturarVariable(x) {
+  if (!catalogo) { await cargarCatalogos(); if (!catalogo) return; }
+  if (SEG !== 'gasto') segmento('gasto');
+  ir('gasto');
+  ponerRaw($('#gMonto'), '');
+  aplicarPlantilla({ categoria: x.categoria, metodo: x.metodo, quien: x.quien, nota: x.nota }, false);
+  const h = x.historial || [];
+  ponerPista(h.length ? `${esc(x.nombre)} · la vez pasada <b>${mx(h[0].monto)}</b> (${fCorta(h[0].fecha)})` +
+    (h.length > 1 ? ' · antes ' + h.slice(1).map(z => `<b>${mx(z.monto)}</b>`).join(', ') : '') : `${esc(x.nombre)} · primera vez que se captura aquí`);
+  abrirPad($('#gMonto'));
 }
 async function capturarFijo(x, b) {
   b.disabled = true;
