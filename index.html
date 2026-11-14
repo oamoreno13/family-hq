@@ -508,7 +508,7 @@ function modoBoton() {
   b.setAttribute('aria-label', g ? (SEG === 'ingreso' ? 'Guardar ingreso' : 'Guardar gasto') : 'Nuevo gasto');
 }
 document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
-  if (b.dataset.v === 'gasto' && vista === 'gasto') return SEG === 'ingreso' ? guardarIngreso() : guardar();
+  if (b.dataset.v === 'gasto' && vista === 'gasto') return SEG === 'ingreso' ? guardarIngreso() : guardar(false);
   ir(b.dataset.v);
   if (b.dataset.v === 'gasto') { ponerPista(''); const inp = SEG === 'ingreso' ? $('#iMonto') : $('#gMonto'); if (!numDe(inp.value)) abrirPad(inp); }
 });
@@ -802,7 +802,7 @@ $('#gNota').oninput = () => {
 };
 
 let guardando = false;
-async function guardar() {
+async function guardar(forzar) {
   if (guardando) return;
   const monto = numDe($('#gMonto').value);
   if (!(monto > 0)) { abrirPad($('#gMonto')); return toast('Escribe el monto', null, true); }
@@ -812,8 +812,9 @@ async function guardar() {
   btn.disabled = true; fab.disabled = true; btn.textContent = 'Guardando…';
   if (document.activeElement) document.activeElement.blur();          // cierra el teclado
   try {
-    const res = await enviar('guardarGasto', { id: nuevoId(), monto, categoria: G.categoria, metodo: G.metodo, quien: G.quien,
-      fecha: fechaElegida(), nota: $('#gNota').value.trim() }, `${mx(monto)} en ${G.categoria}`);
+    const res = await enviar('guardarGastoSeguro', { id: nuevoId(), monto, categoria: G.categoria, metodo: G.metodo, quien: G.quien,
+      fecha: fechaElegida(), nota: $('#gNota').value.trim(), forzar: !!forzar }, `${mx(monto)} en ${G.categoria}`);
+    if (res.r && res.r.duplicado) { avisoDuplicado(res.r.duplicado); return; }
     if (res.enCola) toast(`Sin señal: ${mx(monto)} en ${G.categoria} quedó en el teléfono y se manda solo`);
     else { const r = res.r; toast(`${mx(monto)} en ${G.categoria} · guardado`, async () => {
       try { await run('borrarGasto', r.fila, r.monto, r.categoria); toast('Gasto eliminado'); cargarFijos(); }
@@ -826,7 +827,21 @@ async function guardar() {
   } catch (e) { toast(e, null, true); }
   finally { guardando = false; btn.disabled = false; fab.disabled = false; btn.textContent = 'Guardar gasto'; }
 }
-$('#gGuardar').onclick = guardar;
+$('#gGuardar').onclick = () => guardar();
+/* Mismo monto y categoría a 3 días o menos: pregunta antes de guardar (lo demás del formulario se queda). */
+function avisoDuplicado(d) {
+  const m = modal(`<h4>¿Es otro gasto?</h4>
+    <p class="sub" style="margin:6px 0 12px">Ya hay uno igual capturado: <b>${mx(d.monto)}</b> en ${esc(d.categoria)}${d.nota ? ' (' + esc(d.nota) + ')' : ''}, el ${fDia(d.fecha)}, con ${esc(d.metodo)} · ${esc(d.quien)}.</p>
+    <button class="btn" id="dSi" style="margin-top:4px">Sí, es otro: guardarlo</button>
+    <button class="btn sec" id="dNo">No, es el mismo: no guardar</button>`);
+  m.querySelector('#dSi').onclick = () => { cerrarModal(); guardar(true); };
+  m.querySelector('#dNo').onclick = () => {
+    cerrarModal();
+    $('#gMonto').value = ''; $('#gNota').value = ''; $('#gSug').hidden = true; $('#gFecha').hidden = true; ponerPista('');
+    G.categoria = ''; G.fecha = 'hoy'; pintarGasto(); arriba();
+    toast('No se guardó: ya estaba capturado');
+  };
+}
 
 /* ======================= GASTOS DEL MES ======================= */
 let mesVista = hoy().slice(0, 7);
@@ -1020,7 +1035,7 @@ function pintarCola() {
 async function enviar(fn, obj, desc) {
   try { return { r: await run(fn, obj) }; }
   catch (e) {
-    if (e && e.red) { const l = colaLee(); l.push({ fn, obj, desc, ts: Date.now() }); colaGuarda(l); return { enCola: true }; }
+    if (e && e.red) { const l = colaLee(); l.push({ fn, obj: fn === 'guardarGastoSeguro' ? Object.assign({}, obj, { forzar: true }) : obj, desc, ts: Date.now() }); colaGuarda(l); return { enCola: true }; }
     throw e;
   }
 }
