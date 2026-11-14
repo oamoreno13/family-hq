@@ -1129,10 +1129,11 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v9';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v10' + (MEDIDAS ? ' · ' + MEDIDAS : '');
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
+let MEDIDAS = '';
 function ajustarAlto() {
   const completa = navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
   if (!completa) return;
@@ -1140,10 +1141,13 @@ function ajustarAlto() {
     const vertical = !window.matchMedia || matchMedia('(orientation: portrait)').matches;
     const pantalla = vertical ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
     if (document.body.classList.contains('kb')) return;            // con teclado abierto no se recalcula
-    const corta = pantalla - window.innerHeight > 20;
-    document.documentElement.style.setProperty('--alto', pantalla + 'px');
-    document.documentElement.classList.toggle('banda', corta);
-    if (corta) window.scrollTo(0, 0);
+    // Desde el ícono la app es toda la pantalla: se estira siempre a su altura real (iOS a veces reporta menos).
+    const alto = Math.max(pantalla, window.innerHeight);
+    MEDIDAS = `${screen.width}×${screen.height} · ${window.innerWidth}×${window.innerHeight} · ${document.documentElement.clientHeight}`;
+    document.documentElement.style.setProperty('--alto', alto + 'px');
+    document.documentElement.classList.add('banda');
+    window.scrollTo(0, 0);
+    pintarEstado();
   };
   fija();
   window.addEventListener('resize', fija); window.addEventListener('orientationchange', () => setTimeout(fija, 300));
