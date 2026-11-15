@@ -669,7 +669,7 @@ function abonoHTML(e) {
   const a = e.abono, pct = Math.min(a.cubeta / a.mensualidad, 1);
   if (a.pagada) return `<div class="card"><h3>LA CAMIONETA</h3>
     <div class="mesbig num" style="font-size:30px">Pagada 🎉</div>
-    <div class="nota ok">Su mensualidad (${mx(a.mensualidad)}) y el % de Abono ya van solos a MAYA cada semana.${a.cubeta > 0 ? ` Lo que quedó en la cubeta (${mx(a.cubeta)}) pásenlo a MAYA.` : ''}</div>
+    <div class="nota ok">El % de Abono y el de su mensualidad (${mx(a.mensualidad)}) ya van solos a MAYA en el reparto.${a.cubeta > 0 ? ` Lo que quedó en la cubeta (${mx(a.cubeta)}) pásenlo a MAYA.` : ''}</div>
   </div>`;
   return `<div class="card"><h3>ABONO A LA CAMIONETA</h3>
     <div class="mesbig num" style="font-size:30px">${mx(a.cubeta)}</div>
@@ -798,12 +798,12 @@ let SEG = 'gasto';
 const I = { quien: ['Omar', 'Gina'].includes(leeLocal('iQuien', '')) ? leeLocal('iQuien', '') : 'Omar', fecha: 'hoy', tipo: 'Fijo' };
 const TIPOS = ['Fijo', 'Extra', 'Venta casa', 'Fondo de ahorro', 'Devolución SAT', 'Aguinaldo / PTU'];
 const TIPO_DESTINO = {
-  'Fijo': 'Sueldo o cobro normal. Entra al reparto y al promedio semanal.',
-  'Extra': 'Algo fuera de lo normal (bono, venta, regalo). Entra al reparto, no al promedio.',
-  'Venta casa': 'Va completo a Cash Up. No entra al reparto.',
-  'Fondo de ahorro': 'Primero completa el tope del PPR en Cash Up; el resto va a Abono camioneta.',
-  'Devolución SAT': 'Va completa a Abono camioneta (cuando esté pagada, a MAYA).',
-  'Aguinaldo / PTU': 'Va completo a Abono camioneta (cuando esté pagada, a MAYA). No entra al reparto.'
+  'Fijo': 'Sueldo o cobro normal. Entra al reparto y cuenta para el promedio semanal.',
+  'Extra': 'Entra al reparto como todo ingreso. No cuenta para el promedio semanal.',
+  'Venta casa': 'Entra al reparto como todo ingreso. No cuenta para el promedio semanal.',
+  'Fondo de ahorro': 'Entra al reparto como todo ingreso. No cuenta para el promedio semanal.',
+  'Devolución SAT': 'Entra al reparto como todo ingreso. No cuenta para el promedio semanal.',
+  'Aguinaldo / PTU': 'Entra al reparto como todo ingreso. No cuenta para el promedio semanal.'
 };
 function segmento(v) {
   SEG = v;
@@ -1214,7 +1214,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v14';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v15';
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
