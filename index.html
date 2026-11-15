@@ -622,6 +622,7 @@ function pintarInicio(d) {
         <div class="bar"><i style="width:${Math.min(avance, 1) * 100}%;${avance > diaPct + .1 ? 'background:var(--cempa)' : ''}"></i><span class="marca" style="left:${diaPct * 100}%"></span></div>
         <div class="pies"><span>${m.queda >= 0 ? 'Quedan ' + mx(m.queda) : 'Excedido ' + mx(-m.queda)}</span><span>la raya marca hoy</span></div>
         ${estado}
+        ${d.estudio && d.estudio.extra && d.estudio.extra.tope ? (x => `<div class="fila" style="margin-top:8px"><span class="l">Extraordinarios del mes</span><span class="v ${x.va > x.tope ? 'warn' : ''}">${mx(x.va)} de ${mx(x.tope)}</span></div><div class="bar"><i style="width:${Math.min(x.va / x.tope, 1) * 100}%;${x.va > x.tope ? 'background:var(--cempa)' : ''}"></i></div>`)(d.estudio.extra) : ''}
         ${m.top.length ? `<div class="top3">${m.top.map(c => `<span>${esc(c[0])} <b>${mx(c[1])}</b></span>`).join('')}</div>` : ''}
       </div>
 
@@ -666,6 +667,10 @@ function estudioHTML(e) {
 function abonoHTML(e) {
   if (!e || !e.abono || !e.abono.mensualidad) return '';
   const a = e.abono, pct = Math.min(a.cubeta / a.mensualidad, 1);
+  if (a.pagada) return `<div class="card"><h3>LA CAMIONETA</h3>
+    <div class="mesbig num" style="font-size:30px">Pagada 🎉</div>
+    <div class="nota ok">Su mensualidad (${mx(a.mensualidad)}) y el % de Abono ya van solos a MAYA cada semana.${a.cubeta > 0 ? ` Lo que quedó en la cubeta (${mx(a.cubeta)}) pásenlo a MAYA.` : ''}</div>
+  </div>`;
   return `<div class="card"><h3>ABONO A LA CAMIONETA</h3>
     <div class="mesbig num" style="font-size:30px">${mx(a.cubeta)}</div>
     <div class="sub">en la cubeta · una mensualidad son ${mx(a.mensualidad)}</div>
@@ -682,19 +687,19 @@ function registrarAbono(a) {
   const m = modal(`<h4>Abono a capital · BYD</h4>
     <p class="hint">Anótenlo después de pagarlo en Banorte. El saldo nuevo viene en el comprobante o en la app de Banorte.</p>
     <label class="t">Abono a capital</label><input class="montoIn num" id="aMonto" inputmode="decimal" placeholder="$0" value="${a && a.sugerido ? a.sugerido : ''}">
-    <label class="t">Saldo del crédito después del abono</label><input class="campo num" id="aSaldo" inputmode="decimal" placeholder="$0">
+    <label class="t">Saldo del crédito después del abono</label><input class="campo num" id="aSaldo" inputmode="decimal" placeholder="$0 si ya quedó pagada">
     <label class="t">Fecha</label><input class="campo" type="date" id="aFecha" value="${hoy()}">
     <button class="btn" id="aOk">Guardar abono</button><button class="btn sec" id="aNo">Cancelar</button>`);
   m.querySelector('#aNo').onclick = cerrarModal;
   m.querySelector('#aOk').onclick = async () => {
-    const monto = numDe(m.querySelector('#aMonto').value), saldo = numDe(m.querySelector('#aSaldo').value);
+    const monto = numDe(m.querySelector('#aMonto').value), saldoTxt = m.querySelector('#aSaldo').value.trim(), saldo = numDe(saldoTxt);
     if (!(monto > 0)) return toast('Escribe el abono', null, true);
-    if (!(saldo > 0)) return toast('Falta el saldo que dio Banorte', null, true);
+    if (!saldoTxt) return toast('Falta el saldo que dio Banorte (0 si ya quedó pagada)', null, true);
     const btn = m.querySelector('#aOk'); btn.disabled = true; btn.textContent = 'Guardando…';
     try {
       const r = await run('registrarAbono', { id: nuevoId(), monto, saldo, fecha: m.querySelector('#aFecha').value || hoy() });
       cerrarModal();
-      toast(`Abono de ${mx(monto)} anotado · ${r.ahorrados} meses menos de crédito`);
+      toast(saldo === 0 ? '🎉 Camioneta pagada: desde hoy su mensualidad va a MAYA' : `Abono de ${mx(monto)} anotado · ${r.ahorrados} meses menos de crédito`);
       cargarInicio();
     } catch (e) { btn.disabled = false; btn.textContent = 'Guardar abono'; toast(e, null, true); }
   };
@@ -791,13 +796,14 @@ async function buscar(q) {
 /* ======================= INGRESO ======================= */
 let SEG = 'gasto';
 const I = { quien: ['Omar', 'Gina'].includes(leeLocal('iQuien', '')) ? leeLocal('iQuien', '') : 'Omar', fecha: 'hoy', tipo: 'Fijo' };
-const TIPOS = ['Fijo', 'Extra', 'Venta casa', 'Fondo de ahorro', 'Devolución SAT'];
+const TIPOS = ['Fijo', 'Extra', 'Venta casa', 'Fondo de ahorro', 'Devolución SAT', 'Aguinaldo / PTU'];
 const TIPO_DESTINO = {
   'Fijo': 'Sueldo o cobro normal. Entra al reparto y al promedio semanal.',
   'Extra': 'Algo fuera de lo normal (bono, venta, regalo). Entra al reparto, no al promedio.',
   'Venta casa': 'Va completo a Cash Up. No entra al reparto.',
   'Fondo de ahorro': 'Primero completa el tope del PPR en Cash Up; el resto va a Abono camioneta.',
-  'Devolución SAT': 'Va completa a Abono camioneta.'
+  'Devolución SAT': 'Va completa a Abono camioneta (cuando esté pagada, a MAYA).',
+  'Aguinaldo / PTU': 'Va completo a Abono camioneta (cuando esté pagada, a MAYA). No entra al reparto.'
 };
 function segmento(v) {
   SEG = v;
@@ -1208,7 +1214,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v13';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v14';
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */

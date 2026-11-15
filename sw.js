@@ -1,7 +1,7 @@
 // La pantalla se pide primero a internet (así cada cambio se ve al abrir) y, si no hay señal
 // o tarda más de 3 segundos, se usa la última guardada. Íconos y demás: la guardada al instante.
 // Los datos no pasan por aquí (van directo a Google con la clave).
-const CACHE = 'hq-v13b';
+const CACHE = 'hq-v14';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'apple-touch-icon.png', 'icon-192.png', 'favicon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
