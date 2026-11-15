@@ -763,8 +763,8 @@ function semanaHTML(d) {
   return `<div class="card">
     <div class="cardH"><h3>Semana ${s.sem} · corte ${fCorta(s.fecha)}</h3><button class="lnk" data-ir="gasto" id="irIngreso">+ ingreso</button></div>
     <div class="mesRow"><div class="mesbig num">${mx(s.total)}</div><div class="sub">entró esta semana</div></div>
-    <div class="split"><i class="o" style="width:${s.omar / tot * 100}%"></i><i class="g" style="flex:1"></i></div>
-    <div class="pies"><span><b style="color:var(--tinta)">Omar</b> ${mx(s.omar)}</span><span><b style="color:var(--tinta)">Gina</b> ${mx(s.gina)}</span></div>
+    ${s.total > 0 ? `<div class="split"><i class="o" style="width:${s.omar / tot * 100}%"></i><i class="g" style="flex:1"></i></div>
+    <div class="pies"><span><b style="color:var(--tinta)">Omar</b> ${mx(s.omar)}</span><span><b style="color:var(--tinta)">Gina</b> ${mx(s.gina)}</span></div>` : '<p class="hint" style="margin-top:2px">Todavía no entra nada esta semana. Captúrenlo con + ingreso.</p>'}
     ${rep}
     ${s.depositos.length ? `<details class="mas"><summary>Depósitos de la semana (${s.depositos.length})</summary>
       ${s.depositos.map(x => `<div class="dep"><span>${fCorta(x.fecha)} · ${esc(x.quien)}${x.nota ? ' · ' + esc(x.nota) : ''}${x.tipo && x.tipo !== 'Fijo' ? `<span class="tipo">${esc(x.tipo)}</span>` : ''}</span><b>${mx(x.monto)}</b></div>`).join('')}</details>` : ''}
