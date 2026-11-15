@@ -112,6 +112,14 @@
   .semCard .lbl{font-size:11.5px;color:var(--humo)} .semCard .v{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
   .dep{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--linea)} .dep:last-child{border-bottom:0}
   .dep span{color:var(--humo)} .dep b{font-variant-numeric:tabular-nums}
+  .tipo{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--cempaL);color:var(--cempaTxt);margin-left:4px}
+  .neto{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12)}
+  .neto .lbl{font-size:12px;color:#8E9BAA} .neto .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;color:#EDEEEA}
+  .neto small{display:block;font-size:11.5px;color:#7FC4B8;text-align:right}
+  .rep .fila .l b{font-weight:600;color:var(--tinta)} .rep .fila .l small{color:var(--humo);font-size:12px}
+  .alerta{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--linea);font-size:13.5px}
+  .alerta:last-child{border-bottom:0} .alerta i{font-style:normal;flex:none;width:20px;text-align:center}
+  .alerta b{display:block;font-weight:600;font-size:12px;color:var(--humo)}
   label.t{display:block;font-size:12px;font-weight:600;color:var(--humo);margin:14px 0 7px}
   .montoIn{width:100%;font-family:'Instrument Serif',serif;font-size:46px;border:0;border-bottom:2px solid var(--linea);
     background:transparent;color:var(--tinta);padding:4px 0;outline:none;border-radius:0}
@@ -292,6 +300,8 @@
       <h3 id="iTitulo">NUEVO INGRESO</h3>
       <input class="montoIn num" id="iMonto" readonly inputmode="none" placeholder="$0" autocomplete="off" aria-label="Monto">
       <label class="t">De quién</label><div class="chips" id="iQuien"></div>
+      <label class="t">Tipo</label><div class="chips" id="iTipo"></div>
+      <p class="hint" id="iTipoHint" style="margin-top:6px"></p>
       <label class="t">¿De qué? <span style="font-weight:400">(opcional)</span></label>
       <input class="campo" id="iNota" placeholder="Quincena, consultas, bono…" autocomplete="off">
       <label class="t">Fecha</label>
@@ -601,7 +611,9 @@ function pintarInicio(d) {
         </div>
         <div class="bar oscura"><i style="width:${Math.min(d.pctMillon, 1) * 100}%"></i></div>
         <div class="pies"><span>${pc(d.pctMillon)} del primer millón</span><span class="num">ver el camino ›</span></div>
+        ${d.estudio ? `<div class="neto"><div><div class="lbl">Patrimonio neto · tenemos − debemos</div><div class="v">${mx(d.estudio.neto)}</div></div><small>faltan ${mx(d.estudio.hito - d.estudio.neto)}<br>para ${mx(d.estudio.hito)}</small></div>` : ''}
       </div>
+      ${estudioHTML(d.estudio)}
 
       <div class="card">
         <h3>${mesNom.toUpperCase()} · DÍA ${m.dia} DE ${m.diasMes}</h3>
@@ -619,15 +631,73 @@ function pintarInicio(d) {
         <div class="mesbig num" style="font-size:34px">${mx(d.semanaActual.total)}</div>
         <div class="sub">entró hasta ahora</div>
         <div class="dos"><div><div class="lbl">Omar</div><div class="v">${mx(d.semanaActual.omar)}</div></div><div><div class="lbl">Gina</div><div class="v">${mx(d.semanaActual.gina)}</div></div></div>
-        ${d.semanaActual.depositos.length ? `<div style="margin-top:10px">${d.semanaActual.depositos.slice(0, 5).map(x => `<div class="dep"><span>${fCorta(x.fecha)} · ${esc(x.quien)}${x.nota ? ' · ' + esc(x.nota) : ''}</span><b>${mx(x.monto)}</b></div>`).join('')}</div>` : '<p class="hint">Captura los depósitos con + → Ingreso.</p>'}
+        ${d.semanaActual.depositos.length ? `<div style="margin-top:10px">${d.semanaActual.depositos.slice(0, 5).map(x => `<div class="dep"><span>${fCorta(x.fecha)} · ${esc(x.quien)}${x.nota ? ' · ' + esc(x.nota) : ''}${x.tipo && x.tipo !== 'Fijo' ? `<span class="tipo">${esc(x.tipo)}</span>` : ''}</span><b>${mx(x.monto)}</b></div>`).join('')}</div>` : '<p class="hint">Captura los depósitos con + → Ingreso.</p>'}
       </div>` : ''}
 
       <div id="fijosBox"></div>
+      ${abonoHTML(d.estudio)}
       ${d.tarjetas.map(tarjetaHTML).join('')}
       <p class="hint" style="text-align:center">Las tarjetas cuentan solo lo capturado aquí.<span id="respaldoTxt"></span></p>`;
     $('#irMillon').onclick = () => ir('millon');
+    const ba = $('#btnAbono'); if (ba) ba.onclick = () => registrarAbono(d.estudio.abono);
     pintarFijos(); pintarEstado();
   }
+}
+
+/* ======================= ESTUDIO PATRIMONIAL ======================= */
+/* Alertas y reparto de la semana: lo que hay que hacer, arriba y claro. */
+function estudioHTML(e) {
+  if (!e) return '';
+  const ojo = e.alertas.filter(a => a.nivel !== 'ok');
+  const icono = n => n === 'ojo' ? '⚠️' : n === 'accion' ? '✅' : '✓';
+  const limpio = t => esc(String(t).replace(/^(⚠|✅|✓|✗)\s*/, ''));
+  const alertas = `<div class="card"><h3>ALERTAS</h3>
+    ${ojo.length ? ojo.map(a => `<div class="alerta"><i>${icono(a.nivel)}</i><div><b>${esc(a.titulo)}</b>${limpio(a.texto)}</div></div>`).join('')
+      : '<div class="nota ok" style="margin-top:0">Todo en orden: Family HQ alcanza, sin gastos grandes, fondo en camino.</div>'}
+    ${e.fecha ? `<div class="nota gris">📅 ${esc(e.fecha)}</div>` : ''}
+  </div>`;
+  const filas = e.reparto.filter(r => r.monto > 0.5);
+  const reparto = e.seReparte + e.destinoPropio > 0 ? `<div class="card rep"><h3>EL REPARTO DE ESTA SEMANA${e.esquema !== 'Ahora' ? ' · ' + esc(e.esquema.toUpperCase()) : ''}</h3>
+    ${filas.map(r => `<div class="fila"><span class="l"><b>${esc(r.destino)}</b> <small>${r.pct ? pc(r.pct, 0) : ''}${r.propio ? (r.pct ? ' + ' : '') + mx(r.propio) + ' directo' : ''}</small></span><span class="v ${r.patrimonio ? 'pos' : ''}">${mx(r.monto)}</span></div>`).join('')}
+    <p class="hint">${mx(e.seReparte)} se reparten por %${e.destinoPropio ? ` y ${mx(e.destinoPropio)} van directo a su destino (venta casa, fondo de ahorro o SAT)` : ''}. En verde: lo que hace crecer el patrimonio.</p>
+  </div>` : '';
+  return alertas + reparto;
+}
+function abonoHTML(e) {
+  if (!e || !e.abono || !e.abono.mensualidad) return '';
+  const a = e.abono, pct = Math.min(a.cubeta / a.mensualidad, 1);
+  return `<div class="card"><h3>ABONO A LA CAMIONETA</h3>
+    <div class="mesbig num" style="font-size:30px">${mx(a.cubeta)}</div>
+    <div class="sub">en la cubeta · una mensualidad son ${mx(a.mensualidad)}</div>
+    <div class="bar"><i style="width:${pct * 100}%;${a.listo ? 'background:var(--cempa)' : ''}"></i></div>
+    ${a.listo ? `<div class="nota aviso">Listo: abonen ${mx(a.sugerido)} a capital en Banorte y pidan que <b>reduzca el plazo</b>, no la mensualidad.</div>`
+      : `<div class="pies"><span>faltan ${mx(a.mensualidad - a.cubeta)}</span><span>${pc(pct, 0)}</span></div>`}
+    <div class="fila" style="margin-top:8px"><span class="l">Saldo del crédito</span><span class="v">${mx(a.saldo)}</span></div>
+    <div class="fila"><span class="l">Meses que le quedan</span><span class="v">${a.meses}</span></div>
+    <div class="fila"><span class="l">Meses que ya se ahorraron</span><span class="v pos">${a.ahorrados}</span></div>
+    <button class="btn ${a.listo ? '' : 'sec'}" id="btnAbono" style="margin-top:10px">Registrar un abono</button>
+  </div>`;
+}
+function registrarAbono(a) {
+  const m = modal(`<h4>Abono a capital · BYD</h4>
+    <p class="hint">Anótenlo después de pagarlo en Banorte. El saldo nuevo viene en el comprobante o en la app de Banorte.</p>
+    <label class="t">Abono a capital</label><input class="montoIn num" id="aMonto" inputmode="decimal" placeholder="$0" value="${a && a.sugerido ? a.sugerido : ''}">
+    <label class="t">Saldo del crédito después del abono</label><input class="campo num" id="aSaldo" inputmode="decimal" placeholder="$0">
+    <label class="t">Fecha</label><input class="campo" type="date" id="aFecha" value="${hoy()}">
+    <button class="btn" id="aOk">Guardar abono</button><button class="btn sec" id="aNo">Cancelar</button>`);
+  m.querySelector('#aNo').onclick = cerrarModal;
+  m.querySelector('#aOk').onclick = async () => {
+    const monto = numDe(m.querySelector('#aMonto').value), saldo = numDe(m.querySelector('#aSaldo').value);
+    if (!(monto > 0)) return toast('Escribe el abono', null, true);
+    if (!(saldo > 0)) return toast('Falta el saldo que dio Banorte', null, true);
+    const btn = m.querySelector('#aOk'); btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      const r = await run('registrarAbono', { id: nuevoId(), monto, saldo, fecha: m.querySelector('#aFecha').value || hoy() });
+      cerrarModal();
+      toast(`Abono de ${mx(monto)} anotado · ${r.ahorrados} meses menos de crédito`);
+      cargarInicio();
+    } catch (e) { btn.disabled = false; btn.textContent = 'Guardar abono'; toast(e, null, true); }
+  };
 }
 
 /* ======================= MILLÓN ======================= */
@@ -720,7 +790,15 @@ async function buscar(q) {
 
 /* ======================= INGRESO ======================= */
 let SEG = 'gasto';
-const I = { quien: ['Omar', 'Gina'].includes(leeLocal('iQuien', '')) ? leeLocal('iQuien', '') : 'Omar', fecha: 'hoy' };
+const I = { quien: ['Omar', 'Gina'].includes(leeLocal('iQuien', '')) ? leeLocal('iQuien', '') : 'Omar', fecha: 'hoy', tipo: 'Fijo' };
+const TIPOS = ['Fijo', 'Extra', 'Venta casa', 'Fondo de ahorro', 'Devolución SAT'];
+const TIPO_DESTINO = {
+  'Fijo': 'Sueldo o cobro normal. Entra al reparto y al promedio semanal.',
+  'Extra': 'Algo fuera de lo normal (bono, venta, regalo). Entra al reparto, no al promedio.',
+  'Venta casa': 'Va completo a Cash Up. No entra al reparto.',
+  'Fondo de ahorro': 'Primero completa el tope del PPR en Cash Up; el resto va a Abono camioneta.',
+  'Devolución SAT': 'Va completa a Abono camioneta.'
+};
 function segmento(v) {
   SEG = v;
   $('#segGasto').classList.toggle('on', v === 'gasto'); $('#segIngreso').classList.toggle('on', v === 'ingreso');
@@ -739,6 +817,9 @@ function iFechaChip(v) {
 const iFechaElegida = () => I.fecha === 'hoy' ? hoy() : I.fecha === 'ayer' ? ayer() : ($('#iFecha').value || hoy());
 function pintarIngreso() {
   chips($('#iQuien'), ['Omar', 'Gina'], I.quien, v => { I.quien = v; guardaLocal('iQuien', v); });
+  const tipoHint = () => { $('#iTipoHint').textContent = TIPO_DESTINO[I.tipo]; };
+  chips($('#iTipo'), TIPOS, I.tipo, v => { I.tipo = v; tipoHint(); });
+  tipoHint();
   chips($('#iFechaChips'), ['Hoy', 'Ayer', 'Otra'], I.fecha === 'hoy' ? 'Hoy' : I.fecha === 'ayer' ? 'Ayer' : 'Otra', iFechaChip);
   const c = cacheGet('inicio');
   const sa = c && c.semanaActual;
@@ -754,13 +835,14 @@ async function guardarIngreso() {
   btn.disabled = true; fab.disabled = true; btn.textContent = 'Guardando…';
   if (document.activeElement) document.activeElement.blur();
   try {
-    const res = await enviar('agregarIngreso', { id: nuevoId(), monto, quien: I.quien, fecha: iFechaElegida(), nota: $('#iNota').value.trim() }, `${I.quien} +${mx(monto)}`);
+    const tipo = I.tipo;
+    const res = await enviar('agregarIngreso', { id: nuevoId(), monto, quien: I.quien, fecha: iFechaElegida(), nota: $('#iNota').value.trim(), tipo }, `${I.quien} +${mx(monto)}${tipo !== 'Fijo' ? ' · ' + tipo : ''}`);
     if (res.enCola) toast(`Sin señal: ${I.quien} +${mx(monto)} quedó en el teléfono y se manda solo`);
     else { const r = res.r; toast(`${r.quien} +${mx(monto)} · semana ${r.sem} va en ${mx(r.totalQuien)}`, async () => {
       try { await run('borrarIngreso', r.filaLog, r.monto, r.quien); toast('Depósito eliminado'); cargarInicio(); }
       catch (e) { toast(e, null, true); }
     }); }
-    $('#iMonto').value = ''; $('#iNota').value = ''; $('#iFecha').hidden = true; I.fecha = 'hoy';
+    $('#iMonto').value = ''; $('#iNota').value = ''; $('#iFecha').hidden = true; I.fecha = 'hoy'; I.tipo = 'Fijo'; pintarIngreso();
     arriba();
     run('getInicio').then(d => { cacheSet('inicio', d); pintarIngreso(); }).catch(() => {});
   } catch (e) { toast(e, null, true); }
@@ -1126,7 +1208,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v12';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v13';
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
