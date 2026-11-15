@@ -714,7 +714,12 @@ function hoyHTML(d) {
 
 /* El mes en una tarjeta: cuánto va, cuánto queda, cómo cierra y extraordinarios. */
 function mesHTML(d, mesNom) {
-  const m = d.mes, e = d.estudio;
+  const m = { ...d.mes }, e = d.estudio;
+  // Las mensualidades (casa, BYD) caen una vez al mes: no se proyectan como si se repitieran cada día.
+  if (m.ritmo !== null && m.dia) {
+    const una = m.top.filter(c => /^Mensualidad/i.test(c[0])).reduce((t, c) => t + c[1], 0);
+    m.ritmo = (m.gasto - una) / m.dia * m.diasMes + una;
+  }
   const avance = m.recibe ? m.gasto / m.recibe : 0, diaPct = m.dia / m.diasMes;
   let nota = '';
   if (m.gasto > m.recibe) nota = `<div class="nota aviso">Este mes va ${mx(m.gasto - m.recibe)} arriba de lo que entra a Family HQ. Tema para la junta.</div>`;
