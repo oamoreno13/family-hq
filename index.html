@@ -685,6 +685,7 @@ function abonoHTML(e) {
 }
 function registrarAbono(a) {
   const m = modal(`<h4>Abono a capital · BYD</h4>
+    <div class="nota aviso" style="margin-top:0">Solo para abonos <b>extra a capital</b>. La mensualidad de cada mes se captura como gasto, categoría <b>Mensualidad BYD</b>.</div>
     <p class="hint">Anótenlo después de pagarlo en Banorte. El saldo nuevo viene en el comprobante o en la app de Banorte.</p>
     <label class="t">Abono a capital</label><input class="montoIn num" id="aMonto" inputmode="decimal" placeholder="$0" value="${a && a.sugerido ? a.sugerido : ''}">
     <label class="t">Saldo del crédito después del abono</label><input class="campo num" id="aSaldo" inputmode="decimal" placeholder="$0 si ya quedó pagada">
@@ -695,6 +696,8 @@ function registrarAbono(a) {
     const monto = numDe(m.querySelector('#aMonto').value), saldoTxt = m.querySelector('#aSaldo').value.trim(), saldo = numDe(saldoTxt);
     if (!(monto > 0)) return toast('Escribe el abono', null, true);
     if (!saldoTxt) return toast('Falta el saldo que dio Banorte (0 si ya quedó pagada)', null, true);
+    const btn0 = m.querySelector('#aOk');
+    if (saldo === 0 && !btn0.dataset.ok) { btn0.dataset.ok = '1'; btn0.textContent = 'Sí, la camioneta quedó 100% pagada'; btn0.style.background = 'var(--cempa)'; return toast('Saldo en 0 = camioneta liquidada. Tócalo otra vez solo si es así.', null, true); }
     const btn = m.querySelector('#aOk'); btn.disabled = true; btn.textContent = 'Guardando…';
     try {
       const r = await run('registrarAbono', { id: nuevoId(), monto, saldo, fecha: m.querySelector('#aFecha').value || hoy() });
@@ -1214,7 +1217,7 @@ let estado = cacheGet('estado');
 async function cargarEstado() { try { estado = await run('getEstado'); cacheSet('estado', estado); pintarEstado(); } catch (e) {} }
 function pintarEstado() {
   const el = document.getElementById('respaldoTxt');
-  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v15';
+  if (el) el.textContent = (estado && estado.respaldo ? ` Respaldo automático: ${fDia(estado.respaldo)}.` : '') + ' · v16';
 }
 
 /* ======================= PANTALLA COMPLETA ======================= */
