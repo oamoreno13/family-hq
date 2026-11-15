@@ -657,7 +657,7 @@ function estudioHTML(e) {
     ${e.fecha ? `<div class="nota gris">📅 ${esc(e.fecha)}</div>` : ''}
   </div>`;
   const filas = e.reparto.filter(r => r.monto > 0.5);
-  const reparto = e.seReparte + e.destinoPropio > 0 ? `<div class="card rep"><h3>EL REPARTO DE ESTA SEMANA${e.esquema !== 'Ahora' ? ' · ' + esc(e.esquema.toUpperCase()) : ''}</h3>
+  const reparto = e.seReparte + e.destinoPropio > 0 ? `<div class="card rep"><h3>EL REPARTO${e.semReparto ? ` · SEMANA ${e.semReparto.sem}${e.semReparto.fecha ? ' · CORTE ' + fCorta(e.semReparto.fecha).toUpperCase() : ''}` : ' DE LA SEMANA'}${e.esquema !== 'Ahora' ? ' · ' + esc(e.esquema.toUpperCase()) : ''}</h3>
     ${filas.map(r => `<div class="fila"><span class="l"><b>${esc(r.destino)}</b> <small>${r.pct ? pc(r.pct, 0) : ''}${r.propio ? (r.pct ? ' + ' : '') + mx(r.propio) + ' directo' : ''}</small></span><span class="v ${r.patrimonio ? 'pos' : ''}">${mx(r.monto)}</span></div>`).join('')}
     <p class="hint">${mx(e.seReparte)} se reparten por %${e.destinoPropio ? ` y ${mx(e.destinoPropio)} van directo a su destino (venta casa, fondo de ahorro o SAT)` : ''}. En verde: lo que hace crecer el patrimonio.</p>
   </div>` : '';
